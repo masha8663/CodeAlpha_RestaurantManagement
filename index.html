@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>UM Inventory - Enterprise POS & Management</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <style>
+    :root {
+      --bg-color: #0f172a;
+      --card-bg: rgba(30, 41, 59, 0.7);
+      --text-color: #f8fafc;
+      --border-color: rgba(255, 255, 255, 0.12);
+      --accent-color: #6366f1;
+    }
+    [data-theme="light"] {
+      --bg-color: #f1f5f9;
+      --card-bg: #ffffff;
+      --text-color: #0f172a;
+      --border-color: #e2e8f0;
+      --accent-color: #2563eb;
+    }
+    body { background-color: var(--bg-color); color: var(--text-color); font-family: 'Segoe UI', system-ui, sans-serif; transition: all 0.3s ease; }
+    .navbar { background: linear-gradient(90deg, #4f46e5 0%, #7c3aed 100%); }
+    .card-panel { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 16px; padding: 20px; backdrop-filter: blur(10px); box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
+    .btn-gradient { background: linear-gradient(90deg, #6366f1 0%, #a855f7 100%); border: none; color: white; font-weight: bold; }
+    .btn-gradient:hover { opacity: 0.9; color: white; }
+    .theme-toggle { border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; }
+    .stock-badge-low { background-color: #fee2e2; color: #dc2626; border: 1px solid #fecaca; font-weight: bold; }
+    .stock-badge-ok { background-color: #dcfce7; color: #16a34a; border: 1px solid #bbf7d0; font-weight: bold; }
+    .receipt-modal-content { font-family: 'Courier New', Courier, monospace; background: #fff; color: #000; padding: 20px; border: 2px dashed #333; }
+  </style>
+</head>
+<body data-theme="dark">
+
+  <!-- Top Navbar -->
+  <nav class="navbar navbar-dark shadow-sm px-4 mb-4">
+    <div class="container-fluid d-flex justify-content-between align-items-center">
+      <span class="navbar-brand fw-bold fs-3"><i class="fas fa-boxes-packing me-2"></i>UM Inventory System</span>
+      <div class="d-flex align-items-center gap-2">
+        <button class="btn btn-warning fw-bold" data-bs-toggle="modal" data-bs-target="#adminModal"><i class="fas fa-user-shield me-1"></i> Admin Panel</button>
+        <button class="btn btn-light theme-toggle shadow" onclick="toggleTheme()"><i class="fas fa-moon" id="theme-icon"></i></button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container-fluid px-4 mb-5">
+
+    <!-- Metrics Cards -->
+    <div class="row g-3 mb-4">
+      <div class="col-md-3">
+        <div class="card-panel border-start border-primary border-4">
+          <small class="text-uppercase opacity-75 fw-bold">Gross Revenue</small>
+          <div class="fs-3 fw-bold mt-1" id="dash-revenue">$0.00</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card-panel border-start border-success border-4">
+          <small class="text-uppercase opacity-75 fw-bold">Orders Processed</small>
+          <div class="fs-3 fw-bold mt-1" id="dash-orders">0</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card-panel border-start border-danger border-4">
+          <small class="text-uppercase opacity-75 fw-bold">Low Stock Warning</small>
+          <div class="fs-3 fw-bold text-danger mt-1" id="dash-alerts">0 Item(s)</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card-panel border-start border-warning border-4">
+          <small class="text-uppercase opacity-75 fw-bold">Tax Collected (5%)</small>
+          <div class="fs-3 fw-bold mt-1" id="dash-tax">$0.00</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-4">
+      <!-- Menu Catalog & Live Inventory -->
+      <div class="col-lg-7">
+        <div class="card-panel mb-4">
+          <h5 class="fw-bold mb-3"><i class="fas fa-utensils me-2 text-primary"></i>UM POS Catalog</h5>
+          <div id="menu-grid" class="row g-3"></div>
+        </div>
+
+        <div class="card-panel">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="fw-bold mb-0"><i class="fas fa-warehouse me-2 text-primary"></i>UM Live Inventory Stock</h5>
+            <span class="badge bg-primary">Real-Time Auto Sync</span>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-hover align-middle" style="color: inherit;">
+              <thead>
+                <tr>
+                  <th>Stock Item</th>
+                  <th>Category</th>
+                  <th>Quantity</th>
+                  <th>Health Status</th>
+                </tr>
+              </thead>
+              <tbody id="inventory-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Checkout Cart & Table Reservation -->
+      <div class="col-lg-5">
+        <div class="card-panel mb-4">
+          <h5 class="fw-bold mb-3"><i class="fas fa-cart-shopping me-2 text-primary"></i>Active Ticket Checkout</h5>
+          <input type="text" id="cust-name" class="form-control mb-3" placeholder="Customer Name">
+          
+          <div class="p-3 rounded mb-3 border" style="background: rgba(0,0,0,0.1);">
+            <div id="cart-list" class="small">
+              <p class="opacity-75 text-center my-3">Cart is empty. Select items from menu.</p>
+            </div>
+            <hr>
+            <div class="d-flex justify-content-between small opacity-75 mb-1"><span>Subtotal:</span><span id="cart-subtotal">$0.00</span></div>
+            <div class="d-flex justify-content-between small opacity-75 mb-2"><span>Tax (5%):</span><span id="cart-tax">$0.00</span></div>
+            <div class="d-flex justify-content-between fs-5 fw-bold"><span>Total Payable:</span><span id="cart-total">$0.00</span></div>
+          </div>
+
+          <button class="btn btn-gradient btn-lg w-100" onclick="processOrder()"><i class="fas fa-print me-2"></i>Checkout & Print Thermal Receipt</button>
+        </div>
+
+        <div class="card-panel">
+          <h5 class="fw-bold mb-3"><i class="fas fa-chair me-2 text-primary"></i>Table Reservation</h5>
+          <div id="tables-grid" class="d-flex flex-wrap gap-2 mb-3"></div>
+
+          <div class="border-top pt-3">
+            <div class="row g-2 mb-2">
+              <div class="col-6"><input type="text" id="res-name" class="form-control form-control-sm" placeholder="Customer Name"></div>
+              <div class="col-6"><input type="text" id="res-phone" class="form-control form-control-sm" placeholder="Phone"></div>
+            </div>
+            <div class="row g-2 mb-2">
+              <div class="col-6"><input type="date" id="res-date" class="form-control form-control-sm"></div>
+              <div class="col-6"><select id="res-table-select" class="form-select form-select-sm"></select></div>
+            </div>
+            <button class="btn btn-outline-primary btn-sm w-100 fw-bold" onclick="reserveTable()">Book Table</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin Modal -->
+  <div class="modal fade" id="adminModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered text-dark">
+      <div class="modal-content">
+        <div class="modal-header bg-warning">
+          <h5 class="modal-title fw-bold"><i class="fas fa-user-shield me-2"></i>UM Inventory Admin Control</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="password" id="admin-key" class="form-control mb-3" placeholder="Admin Secret Key (admin123)">
+          
+          <ul class="nav nav-tabs mb-3" id="adminTabs">
+            <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#addStockTab">Add Stock Item</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#addMenuTab">Add Menu Item</button></li>
+          </ul>
+
+          <div class="tab-content">
+            <div class="tab-pane fade show active" id="addStockTab">
+              <input type="text" id="adm-stock-name" class="form-control mb-2" placeholder="Item Name (e.g. Cheese)">
+              <input type="text" id="adm-stock-cat" class="form-control mb-2" placeholder="Category">
+              <input type="number" id="adm-stock-qty" class="form-control mb-2" placeholder="Quantity">
+              <input type="text" id="adm-stock-unit" class="form-control mb-3" placeholder="Unit (e.g. Packets)">
+              <button class="btn btn-success w-100" onclick="addInventoryStock()">Publish Stock Item</button>
+            </div>
+            <div class="tab-pane fade" id="addMenuTab">
+              <input type="text" id="adm-menu-name" class="form-control mb-2" placeholder="Dish Name">
+              <input type="number" id="adm-menu-price" class="form-control mb-2" placeholder="Price ($)">
+              <input type="text" id="adm-menu-cat" class="form-control mb-2" placeholder="Category">
+              <select id="adm-menu-inv-select" class="form-select mb-3"></select>
+              <button class="btn btn-success w-100" onclick="addMenuItem()">Publish Menu Item</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Thermal Receipt Modal -->
+  <div class="modal fade" id="receiptModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content">
+        <div class="modal-body p-0">
+          <div id="printableReceipt" class="receipt-modal-content">
+            <div class="text-center mb-3">
+              <h4 class="fw-bold mb-0">UM INVENTORY POS</h4>
+              <p class="small mb-0">Official Thermal Invoice</p>
+              <p class="small" id="rec-order-no"></p>
+            </div>
+            <p class="small mb-1"><strong>Customer:</strong> <span id="rec-cust"></span></p>
+            <p class="small mb-3"><strong>Date:</strong> <span id="rec-date"></span></p>
+            <hr style="border-top: 1px dashed #000;">
+            <div id="rec-items" class="small mb-3"></div>
+            <hr style="border-top: 1px dashed #000;">
+            <div class="d-flex justify-content-between small"><span>Subtotal:</span><span id="rec-subtotal"></span></div>
+            <div class="d-flex justify-content-between small"><span>Tax (5%):</span><span id="rec-tax"></span></div>
+            <div class="d-flex justify-content-between fw-bold fs-6 mt-1"><span>TOTAL:</span><span id="rec-total"></span></div>
+          </div>
+        </div>
+        <div class="modal-footer p-2">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+          <button type="button" class="btn btn-primary btn-sm" onclick="window.print()"><i class="fas fa-print me-1"></i>Print</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    let cart = [];
+
+    function toggleTheme() {
+      const body = document.body;
+      const icon = document.getElementById('theme-icon');
+      if (body.getAttribute('data-theme') === 'dark') {
+        body.setAttribute('data-theme', 'light');
+        icon.className = 'fas fa-sun';
+      } else {
+        body.setAttribute('data-theme', 'dark');
+        icon.className = 'fas fa-moon';
+      }
+    }
+
+    async function loadData() {
+      const resMenu = await fetch('/api/menu');
+      const menu = await resMenu.json();
+      document.getElementById('menu-grid').innerHTML = menu.map(m => {
+        const inv = m.inventoryItemId || {};
+        const isOut = inv.availableQty <= 0;
+        return `
+          <div class="col-md-6">
+            <div class="p-3 border rounded h-100 d-flex flex-column justify-content-between" style="background: rgba(0,0,0,0.1);">
+              <div>
+                <span class="badge bg-secondary mb-2">${m.category}</span>
+                <h6 class="fw-bold mb-1">${m.name}</h6>
+                <div class="text-warning fw-bold fs-5 mb-2">$${m.price.toFixed(2)}</div>
+                <div class="small mb-2">Stock: <span class="badge ${inv.availableQty <= inv.minAlertThreshold ? 'bg-danger' : 'bg-success'}">${inv.availableQty || 0} ${inv.unit || ''}</span></div>
+              </div>
+              <button class="btn btn-sm ${isOut ? 'btn-secondary' : 'btn-outline-primary'} w-100" onclick="addToCart('${m._id}', '${m.name}', ${m.price}, ${inv.availableQty || 0})" ${isOut ? 'disabled' : ''}>
+                ${isOut ? 'Out of Stock' : '+ Add Item'}
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      const resInv = await fetch('/api/inventory');
+      const inventory = await resInv.json();
+      document.getElementById('inventory-tbody').innerHTML = inventory.map(i => {
+        const isLow = i.availableQty <= i.minAlertThreshold;
+        return `
+          <tr>
+            <td class="fw-bold">${i.itemName}</td>
+            <td><span class="badge bg-secondary">${i.category}</span></td>
+            <td class="fw-bold fs-6">${i.availableQty} ${i.unit}</td>
+            <td><span class="badge ${isLow ? 'stock-badge-low' : 'stock-badge-ok'} p-2">${isLow ? '⚠️ LOW STOCK' : '✓ Normal'}</span></td>
+          </tr>
+        `;
+      }).join('');
+
+      document.getElementById('adm-menu-inv-select').innerHTML = inventory.map(i => `<option value="${i._id}">${i.itemName}</option>`).join('');
+
+      const resTables = await fetch('/api/tables');
+      const tables = await resTables.json();
+      document.getElementById('tables-grid').innerHTML = tables.map(t => `
+        <div class="p-2 border rounded text-center" style="min-width:80px;">
+          <div class="fw-bold small">Table ${t.tableNumber}</div>
+          <span class="badge ${t.status === 'Available' ? 'bg-success' : 'bg-secondary'}" style="font-size:10px">${t.status}</span>
+        </div>
+      `).join('');
+
+      document.getElementById('res-table-select').innerHTML = tables.filter(t => t.status === 'Available').map(t => `<option value="${t._id}">Table ${t.tableNumber}</option>`).join('');
+
+      const resAnalytics = await fetch('/api/reports/analytics');
+      const data = await resAnalytics.json();
+      document.getElementById('dash-revenue').innerText = `$${data.totalRevenue}`;
+      document.getElementById('dash-orders').innerText = data.totalOrders;
+      document.getElementById('dash-alerts').innerText = `${data.lowStockCount} Item(s)`;
+      document.getElementById('dash-tax').innerText = `$${data.totalTaxCollected}`;
+    }
+
+    function addToCart(menuId, name, price, maxQty) {
+      const existing = cart.find(c => c.menuId === menuId);
+      if (existing) {
+        if (existing.qty + 1 > maxQty) return alert('Stock Limit Exceeded');
+        existing.qty += 1;
+      } else {
+        cart.push({ menuId, name, price, qty: 1 });
+      }
+      renderCart();
+    }
+
+    function renderCart() {
+      if (cart.length === 0) {
+        document.getElementById('cart-list').innerHTML = `<p class="opacity-75 text-center my-3">Cart is empty.</p>`;
+        document.getElementById('cart-subtotal').innerText = '$0.00';
+        document.getElementById('cart-tax').innerText = '$0.00';
+        document.getElementById('cart-total').innerText = '$0.00';
+        return;
+      }
+
+      let subtotal = 0;
+      document.getElementById('cart-list').innerHTML = cart.map(c => {
+        const itemSubtotal = c.price * c.qty;
+        subtotal += itemSubtotal;
+        return `<div class="d-flex justify-content-between mb-2"><div>${c.name} x${c.qty}</div><div>$${itemSubtotal.toFixed(2)}</div></div>`;
+      }).join('');
+
+      const tax = subtotal * 0.05;
+      document.getElementById('cart-subtotal').innerText = `$${subtotal.toFixed(2)}`;
+      document.getElementById('cart-tax').innerText = `$${tax.toFixed(2)}`;
+      document.getElementById('cart-total').innerText = `$${(subtotal + tax).toFixed(2)}`;
+    }
+
+    async function processOrder() {
+      const customerName = document.getElementById('cust-name').value;
+      if (cart.length === 0) return alert('Cart is empty');
+
+      const res = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customerName, cartItems: cart })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        const rec = data.receipt;
+        document.getElementById('rec-order-no').innerText = rec.orderNumber;
+        document.getElementById('rec-cust').innerText = rec.customerName;
+        document.getElementById('rec-date').innerText = new Date(rec.createdAt).toLocaleString();
+        document.getElementById('rec-items').innerHTML = rec.items.map(i => `<div class="d-flex justify-content-between mb-1"><span>${i.name} x${i.qty}</span><span>$${i.subtotal.toFixed(2)}</span></div>`).join('');
+        document.getElementById('rec-subtotal').innerText = `$${rec.subtotal.toFixed(2)}`;
+        document.getElementById('rec-tax').innerText = `$${rec.tax.toFixed(2)}`;
+        document.getElementById('rec-total').innerText = `$${rec.totalAmount.toFixed(2)}`;
+
+        new bootstrap.Modal(document.getElementById('receiptModal')).show();
+        cart = [];
+        document.getElementById('cust-name').value = '';
+        renderCart();
+        loadData();
+      }
+    }
+
+    async function reserveTable() {
+      const customerName = document.getElementById('res-name').value;
+      const phone = document.getElementById('res-phone').value;
+      const date = document.getElementById('res-date').value;
+      const tableId = document.getElementById('res-table-select').value;
+
+      if (!customerName || !tableId) return alert('Enter customer and table details');
+
+      await fetch('/api/reservations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customerName, phone, date, tableId, time: '20:00' })
+      });
+
+      alert('Table Reserved');
+      loadData();
+    }
+
+    async function addInventoryStock() {
+      const adminKey = document.getElementById('admin-key').value;
+      const itemName = document.getElementById('adm-stock-name').value;
+      const category = document.getElementById('adm-stock-cat').value;
+      const availableQty = document.getElementById('adm-stock-qty').value;
+      const unit = document.getElementById('adm-stock-unit').value;
+
+      const res = await fetch('/api/admin/inventory', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminKey, itemName, category, availableQty, unit, minAlertThreshold: 5 })
+      });
+
+      if (res.ok) {
+        alert('Stock Item Published!');
+        loadData();
+      } else {
+        alert('Invalid Admin Key (Use admin123)');
+      }
+    }
+
+    async function addMenuItem() {
+      const adminKey = document.getElementById('admin-key').value;
+      const name = document.getElementById('adm-menu-name').value;
+      const price = document.getElementById('adm-menu-price').value;
+      const category = document.getElementById('adm-menu-cat').value;
+      const inventoryItemId = document.getElementById('adm-menu-inv-select').value;
+
+      const res = await fetch('/api/admin/menu', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminKey, name, price, category, inventoryItemId })
+      });
+
+      if (res.ok) {
+        alert('Menu Item Published!');
+        loadData();
+      } else {
+        alert('Invalid Admin Key (Use admin123)');
+      }
+    }
+
+    loadData();
+  </script>
+</body>
+</html>
